@@ -7,9 +7,6 @@ const GOOGLE_CALENDAR_ID = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_ID!;
 const GOOGLE_CALENDAR_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_API_KEY!;
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY!;
 const STRIPE_DONATION_LINK = process.env.NEXT_PUBLIC_STRIPE_DONATION_LINK!;
-const EMAILJS_PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!;
-const EMAILJS_SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!;
-const EMAILJS_TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!;
 
 let supabase: SupabaseClient;
 
@@ -75,7 +72,6 @@ export class CreativeCollective {
             'admin': 'Catalist'
         };
 
-        console.log('CreativeCollective constructor completed');
     }
 
     getTierDisplayName(internalTier) {
@@ -92,15 +88,12 @@ export class CreativeCollective {
     // INITIALIZATION
     // ====================================
  async init() {
-    console.log('Initializing DÅM Collective...');
 
     // Capture hash before any replaceState calls wipe it
     const _startHash = window.location.hash;
 
     try {
-        console.log('Binding events...');
         this.bindEvents();
-        console.log('✓ Events bound');
 
         // Show loading immediately
         this.showLoadingStats();
@@ -117,9 +110,7 @@ export class CreativeCollective {
         const donationCanceled = urlParams.get('donation_canceled');
         const ticketSuccess = urlParams.get('ticket_success');
 
-        console.log('Checking for existing session...');
         await this.checkSession();
-        console.log('✓ Session checked');
 
             // Load data is now handled in checkSession
             // Don't duplicate loading here
@@ -166,7 +157,6 @@ export class CreativeCollective {
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
-            console.log('✓ Data loading initiated');
 
             // Handle shareable event links: #event=EVENT_ID
             if (_startHash.startsWith('#event=')) {
@@ -185,7 +175,6 @@ export class CreativeCollective {
                 }
             }
 
-            console.log('=== App initialized successfully ===');
 
             // Keepalive: refresh session every 4 minutes so the Supabase client
             // stays healthy without relying on the Realtime WebSocket.
@@ -241,18 +230,15 @@ export class CreativeCollective {
     // AUTHENTICATION
     // ====================================
 async checkSession() {
-    console.log('🔄 Getting session from Supabase...');
 
     // Debug: Check URL for OAuth callback params
     const urlParams = new URLSearchParams(window.location.search);
     const authCode = urlParams.get('code');
     const hasError = urlParams.has('error');
-    console.log('🔍 URL params - code:', !!authCode, 'error:', hasError);
 
     // Debug: Check localStorage
     try {
         const storedAuth = localStorage.getItem('dom-collective-auth');
-        console.log('💾 LocalStorage auth:', storedAuth ? 'EXISTS (length: ' + storedAuth.length + ')' : 'EMPTY');
     } catch (e) {
         console.error('❌ Cannot access localStorage:', e.message);
     }
@@ -264,34 +250,27 @@ async checkSession() {
             const storedAuth = localStorage.getItem('dom-collective-auth');
             const hasStoredSession = storedAuth && storedAuth.includes('"access_token"');
 
-            console.log('🔑 Auth code in URL - checking if exchange needed...');
-            console.log('📦 Has stored session:', hasStoredSession);
 
             // Only exchange if we don't have a valid session already
             if (!hasStoredSession) {
-                console.log('🔄 No stored session - exchanging code...');
                 try {
                     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
 
                     if (exchangeError) {
                         console.error('❌ Code exchange failed:', exchangeError.message);
                     } else {
-                        console.log('✅ Code exchanged! Session:', data.session?.user?.email);
                     }
                 } catch (exchangeErr) {
                     console.error('❌ Exchange error:', exchangeErr.message || exchangeErr);
                 }
             } else {
-                console.log('✅ Already have session - skipping exchange');
             }
 
             // Always clean up URL after attempting exchange
-            console.log('🧹 Cleaning up URL...');
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
         // Timeout guard: if getSession hangs, fall through to public data
-        console.log('📡 Calling getSession...');
         let session = null;
         let error = null;
         try {
@@ -308,7 +287,6 @@ async checkSession() {
             try { localStorage.removeItem('dom-collective-auth-code-verifier'); } catch (e) {}
         }
 
-            console.log('📊 Session result:', session ? '✅ Has session: ' + session.user.email : '❌ No session', error ? '⚠️ Error: ' + error.message : 'No error');
 
             if (error) {
                 console.error('❌ Session error:', error);
@@ -318,11 +296,8 @@ async checkSession() {
             }
 
             if (session && session.user) {
-                console.log('✅ Session exists, calling handleAuthSuccess...');
                 await this.handleAuthSuccess(session);
-                console.log('✅ handleAuthSuccess completed');
             } else {
-                console.log('ℹ️ No active session, loading public data');
                 this.updateAuthButton();
                 await this.loadDataWithoutAuth();
             }
@@ -334,25 +309,19 @@ async checkSession() {
         }
 
         // Listen for auth state changes
-        console.log('👂 Setting up auth state change listener...');
         supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('🔔 Auth state changed:', event, session?.user?.email || 'No user');
 
             if (this._authProcessing) {
-                console.log('⏭️ Already processing auth, skipping...');
                 return;
             }
 
             if (event === 'SIGNED_IN' && session) {
-                console.log('✅ User signed in via state change');
                 this._authProcessing = true;
                 await this.handleAuthSuccess(session);
                 this._authProcessing = false;
             } else if (event === 'SIGNED_OUT') {
-                console.log('👋 User signed out');
                 this.handleSignOut();
             } else if (event === 'TOKEN_REFRESHED') {
-                console.log('🔄 Token refreshed successfully');
             }
         });
     }
@@ -378,43 +347,32 @@ async checkSession() {
     }
 
     async handleAuthSuccess(session) {
-        console.log('🔐 handleAuthSuccess called with session:', session.user.email);
-        console.log('📧 User ID:', session.user.id);
 
         try {
             // Close auth modal if it's open (important for OAuth redirects)
-            console.log('🔍 Checking for auth modal...');
             const authModal = document.getElementById('authModal');
-            console.log('📱 Auth modal found:', !!authModal);
-            console.log('📱 Auth modal active:', authModal?.classList.contains('active'));
 
             if (authModal && authModal.classList.contains('active')) {
                 this.closeModal(authModal);
-                console.log('✅ Auth modal closed successfully');
             } else {
-                console.log('ℹ️ Auth modal was not active or not found');
             }
 
             // Check if profile exists
-            console.log('🔍 Querying profile from database...');
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
                 .maybeSingle();
 
-            console.log('📊 Profile query result:', { hasProfile: !!profile, error: profileError });
 
             if (!profile) {
                 // Profile doesn't exist, create it
-                console.log('No profile found, creating new one...');
                 await this.createNewProfile(session.user);
             } else if (profileError) {
                 // Some other error
                 console.error('Profile query error:', profileError);
                 throw profileError;
             } else {
-                console.log('Profile found, loading...');
 
                 // CRITICAL: Set currentUser immediately with the profile data
                 this.currentUser = {
@@ -437,7 +395,6 @@ async checkSession() {
                     linkedin_url: profile.linkedin_url || ''
                 };
 
-                console.log('✓ currentUser set:', this.currentUser.name, 'Status:', this.currentUser.user_status);
 
                 // Load all necessary data
                 await this.loadMembers();
@@ -462,12 +419,10 @@ async checkSession() {
                     const profileBtn = document.getElementById('profileNavBtn');
                     if (profileBtn) {
                         profileBtn.style.display = 'block';
-                        console.log('✓ Profile nav button displayed');
                     }
                     const checkInBtn = document.getElementById('checkInNavBtn');
                     if (checkInBtn && this.currentUser) {
                         checkInBtn.style.display = 'block';
-                        console.log('✓ Check-in nav button displayed');
                     }
                     const bookSpaceBtn = document.getElementById('bookSpaceNavBtn');
                     if (bookSpaceBtn && this.currentUser) {
@@ -495,13 +450,11 @@ async checkSession() {
     }
 
     async createNewProfile(user) {
-        console.log('Creating new profile for:', user.email);
         
         const userName = user.user_metadata.full_name || 
                         user.user_metadata.name || 
                         user.email.split('@')[0];
         
-        console.log('Profile name will be:', userName);
         
         try {
             const { data, error } = await supabase.from('profiles').insert([{
@@ -519,7 +472,6 @@ async checkSession() {
                 throw error;
             }
 
-            console.log('Profile created successfully:', data);
 
             await this.loadUserProfile(user.id);
             await this.loadMembers();
@@ -654,7 +606,6 @@ async checkSession() {
     }
 
     async login(email, password) {
-        console.log('🔐 Login attempt for:', email);
 
         if (!email || !password) {
             this.showAlert('Please enter both email and password', 'error');
@@ -662,7 +613,6 @@ async checkSession() {
         }
 
         try {
-            console.log('Calling Supabase signInWithPassword...');
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: email.trim(),
                 password: password
@@ -673,10 +623,8 @@ async checkSession() {
                 throw error;
             }
 
-            console.log('✓ Auth successful, user ID:', data.user.id);
 
             // Load the profile which sets currentUser
-            console.log('Loading user profile...');
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
@@ -708,7 +656,6 @@ async checkSession() {
                     linkedin_url: profile.linkedin_url || ''
                 };
 
-                console.log('✓ Login successful, currentUser set:', this.currentUser.name);
             } else {
                 console.error('No profile found for user');
                 throw new Error('Profile not found. Please contact support.');
@@ -747,7 +694,6 @@ async checkSession() {
     }
 
     async signup(email, password, name) {
-        console.log('📝 Signup attempt for:', email);
 
         if (!name || !email || !password) {
             this.showAlert('Please fill in all fields', 'error');
@@ -760,7 +706,6 @@ async checkSession() {
         }
 
         try {
-            console.log('Creating auth account...');
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: email.trim(),
                 password: password,
@@ -780,8 +725,6 @@ async checkSession() {
                 throw new Error('Failed to create account');
             }
 
-            console.log('✓ Auth account created, user ID:', authData.user.id);
-            console.log('Creating profile...');
 
             const { error: profileError } = await supabase
                 .from('profiles')
@@ -800,7 +743,6 @@ async checkSession() {
                 throw profileError;
             }
 
-            console.log('✓ Profile created successfully');
 
             await this.loadUserProfile(authData.user.id);
 
@@ -964,7 +906,6 @@ async checkSession() {
                 linkedin_url: data.linkedin_url || ''
             };
 
-            console.log('User profile loaded:', this.currentUser.name);
         } catch (error) {
             console.error('Load profile error:', error);
         }
@@ -1078,7 +1019,6 @@ async checkSession() {
             return;
         }
 
-        console.log('Loading profile form for user:', this.currentUser.name);
 
         // Update status banner
         const statusBanner = document.getElementById('userStatusBanner');
@@ -1272,7 +1212,6 @@ async checkSession() {
     // ====================================
     async loadMembers() {
         try {
-            console.log('Loading members from database...');
             
             const { data, error } = await supabase
                 .from('profiles')
@@ -1284,7 +1223,6 @@ async checkSession() {
                 throw error;
             }
 
-            console.log('Raw data from Supabase:', data);
 
             this.members = data.map(m => ({
                 id: m.id,
@@ -1303,7 +1241,6 @@ async checkSession() {
             }));
 
             this.updateStats();
-            console.log('✓ Loaded', this.members.length, 'members');
         } catch (error) {
             console.error('❌ Load members error:', error);
             console.error('Error details:', error.message, error.code, error.details);
@@ -1312,7 +1249,6 @@ async checkSession() {
     }
     async loadMissions() {
         try {
-            console.log('Loading missions from database...');
             
             const { data, error } = await supabase
                 .from('missions')
@@ -1325,7 +1261,6 @@ async checkSession() {
                 throw error;
             }
 
-            console.log('Raw missions data:', data);
 
             this.needs = data.map(n => ({
                 id: n.id,
@@ -1341,7 +1276,6 @@ async checkSession() {
             }));
 
             this.updateStats();
-            console.log('✓ Loaded', this.needs.length, 'needs');
         } catch (error) {
             console.error('❌ Load missions error:', error);
             console.error('Error details:', error.message, error.code, error.details);
@@ -1350,7 +1284,6 @@ async checkSession() {
     }
     async loadEvents() {
         try {
-            console.log('Loading events from database...');
             
             const { data, error } = await supabase
                 .from('events')
@@ -1362,7 +1295,6 @@ async checkSession() {
                 throw error;
             }
 
-            console.log('Raw events data:', data);
 
             this.events = data.map(e => ({
                 id: e.id,
@@ -1376,7 +1308,6 @@ async checkSession() {
             }));
 
             this.updateStats();
-            console.log('✓ Loaded', this.events.length, 'events');
         } catch (error) {
             console.error('❌ Load events error:', error);
             console.error('Error details:', error.message, error.code, error.details);
@@ -1385,7 +1316,6 @@ async checkSession() {
     }
 
     async fetchGoogleCalendarEvents() {
-        console.log('Fetching Google Calendar events...');
         
         const now = new Date();
         const nextWeek = new Date();
@@ -1394,16 +1324,13 @@ async checkSession() {
         const timeMin = now.toISOString();
         const timeMax = nextWeek.toISOString();
         
-        console.log('Time range:', { timeMin, timeMax });
         
         try {
             const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GOOGLE_CALENDAR_ID)}/events?key=${GOOGLE_CALENDAR_API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=10`;
             
-            console.log('Fetching from URL (key hidden):', url.replace(GOOGLE_CALENDAR_API_KEY, 'HIDDEN'));
             
             const response = await fetch(url);
             
-            console.log('Calendar API response status:', response.status);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -1412,10 +1339,8 @@ async checkSession() {
             }
             
             const data = await response.json();
-            console.log('Calendar API success - Events found:', data.items?.length || 0);
             
             if (data.items && data.items.length > 0) {
-                console.log('First event:', data.items[0]);
             }
             
             const items = data.items || [];
@@ -2267,7 +2192,6 @@ async checkSession() {
         // Enhanced double submission prevention
         const now = Date.now();
         if (this._isSubmittingNeed || (now - this._lastSubmitTime < 2000)) {
-            console.log('Already submitting or too soon, ignoring duplicate submission');
             return;
         }
         this._lastSubmitTime = now;
@@ -2426,32 +2350,23 @@ async updateMission(needId) {
         this.showEditNeedModal(needId);
     }
     showNeedModal() {
-        console.log('=== showNeedModal DEBUG ===');
-        console.log('currentUser:', this.currentUser);
-        console.log('currentUser exists?', !!this.currentUser);
         
         // Reset submission protection
         this._isSubmittingNeed = false;
         this._lastSubmitTime = 0;
         
         if (!this.currentUser) {
-            console.log('❌ No currentUser - showing auth modal');
             this.showAlert('Please login to post a need', 'error');
             this.showAuthModal();
             return;
         }
         
-        console.log('✓ User found:', this.currentUser.name);
-        console.log('✓ User status:', this.currentUser.user_status);
-        console.log('✓ User ID:', this.currentUser.id);
         
         if (!this.hasCreatorAccess()) {
-            console.log('❌ User does not have Creator access');
             this.showAlert('Creator membership ($15/mo) or higher is required to post needs.', 'error');
             return;
         }
         
-        console.log('✓ All checks passed - opening modal');
         
         // Reset form for new post
         document.getElementById('needForm').reset();
@@ -2713,20 +2628,12 @@ async updateMission(needId) {
     // ====================================
     async createEvent(e) {
         e.preventDefault();
-        console.log('=== CREATE EVENT DEBUG ===');
-        console.log('currentUser:', this.currentUser);
-        console.log('user_status:', this.currentUser?.user_status);
         
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.textContent = 'Creating...';
         }
-        console.log('Form data:', {
-            title: document.getElementById('eventTitle').value,
-            date: document.getElementById('eventDate').value,
-            time: document.getElementById('eventTime').value
-        });
         
         if (!this.currentUser) {
             this.showAlert('Please login to create events', 'error');
@@ -2886,7 +2793,6 @@ async updateMission(needId) {
     // RENDERING METHODS
     // ====================================
     showSection(sectionName) {
-        console.log('Showing section:', sectionName, 'User:', this.currentUser?.name || 'Not logged in');
 
         if (sectionName === 'profile' && !this.currentUser) {
             this.showAlert('Please login to view your profile', 'error');
@@ -2905,7 +2811,6 @@ async updateMission(needId) {
         const activeBtn = document.querySelector(`.nav-btn[data-section="${sectionName}"]`);
         if (activeBtn) {
             activeBtn.classList.add('active');
-            console.log('Activated mobile nav button:', sectionName);
         }
 
         // Update dropdown navigation (V5.2)
@@ -2913,7 +2818,6 @@ async updateMission(needId) {
         const activeDropdownBtn = document.querySelector(`.dropdown-nav-btn[data-section="${sectionName}"]`);
         if (activeDropdownBtn) {
             activeDropdownBtn.classList.add('active');
-            console.log('Activated dropdown nav button:', sectionName);
         }
 
         // Show section
@@ -2921,7 +2825,6 @@ async updateMission(needId) {
         const targetSection = document.getElementById(sectionName);
         if (targetSection) {
             targetSection.classList.add('active');
-            console.log('Section displayed:', sectionName);
         } else {
             console.error('Section not found:', sectionName);
         }
@@ -3991,7 +3894,6 @@ async updateMission(needId) {
             return;
         }
         
-        console.log('Rendering upcoming events for home page...');
         container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
         
         try {
@@ -3999,7 +3901,6 @@ async updateMission(needId) {
                 this.fetchGoogleCalendarEvents(),
                 this.loadEventSettings()
             ]);
-            console.log('Google events fetched:', googleEvents.length);
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -4084,7 +3985,6 @@ async updateMission(needId) {
             wrapper.innerHTML = eventsHTML;
             container.innerHTML = '';
             container.appendChild(wrapper);
-            console.log('Events rendered successfully');
         } catch (error) {
             console.error('Render events error:', error);
             container.innerHTML = '<p class="empty-state">Failed to load events</p>';
@@ -4196,12 +4096,6 @@ async updateMission(needId) {
         }
     }
     async toggleVerification(memberId, currentStatus) {
-        console.log('=== TOGGLE VERIFICATION DEBUG ===');
-        console.log('memberId:', memberId);
-        console.log('currentStatus:', currentStatus);
-        console.log('currentUser:', this.currentUser);
-        console.log('currentUser.user_status:', this.currentUser?.user_status);
-        console.log('Is admin?:', this.currentUser?.user_status === 'admin');
         
         if (!this.currentUser) {
             this.showAlert('Please login to verify members', 'error');
@@ -4237,7 +4131,6 @@ async updateMission(needId) {
     }
 
     async deleteMember(memberId) {
-        console.log('deleteMember called:', { memberId, currentUser: this.currentUser });
         
         if (!this.currentUser) {
             this.showAlert('Please login to delete members', 'error');
@@ -4754,22 +4647,18 @@ async updateMission(needId) {
     }
 
     closeModal(modal) {
-        console.log('🚪 Closing modal:', modal.id);
         modal.classList.remove('active');
 
         // Force hide on mobile (double-check for mobile browsers)
         if (window.innerWidth <= 768) {
-            console.log('📱 Mobile detected - forcing modal display:none');
             modal.style.display = 'none';
             // Reset after a moment to allow CSS to take over
             setTimeout(() => {
                 modal.style.display = '';
-                console.log('✅ Modal display reset to CSS control');
             }, 100);
         }
 
         this.clearForms();
-        console.log('✅ Modal closed successfully');
     }
 
     clearForms() {
@@ -4777,7 +4666,6 @@ async updateMission(needId) {
     }
 
     showAlert(message, type = 'success') {
-        console.log(`Alert (${type}):`, message);
 
         // Remove existing alerts
         document.querySelectorAll('.alert').forEach(alert => alert.remove());
@@ -4813,7 +4701,6 @@ async updateMission(needId) {
     // ====================================
     async loadCheckInStatuses() {
         try {
-            console.log('Loading check-in statuses...');
             
             const { data, error } = await supabase
                 .from('current_check_in_status')
@@ -4822,7 +4709,6 @@ async updateMission(needId) {
             if (error) throw error;
 
             this.checkInStatuses = data || [];
-            console.log('✓ Loaded', this.checkInStatuses.length, 'check-in statuses');
         } catch (error) {
             console.error('Load check-in statuses error:', error);
             this.checkInStatuses = [];
@@ -5283,7 +5169,6 @@ async updateMission(needId) {
             if (error) throw error;
 
             this.subscriptionTiers = data || [];
-            console.log('Loaded subscription tiers:', this.subscriptionTiers);
         } catch (error) {
             console.error('Error loading subscription tiers:', error);
         }
@@ -6085,7 +5970,6 @@ async updateMission(needId) {
             await supabase.functions.invoke('send-notify', {
                 body: { type: 'space_booking', data: req }
             });
-            console.log('✅ Space request notification sent');
         } catch (err) {
             // Non-fatal: request was already saved to DB
             console.error('Space request notification failed:', err);
@@ -6551,7 +6435,6 @@ async updateMission(needId) {
     // ====================================
     async loadPaintings() {
         try {
-            console.log('Loading paintings from database...');
 
             const { data, error } = await supabase
                 .from('paintings')
@@ -6564,7 +6447,6 @@ async updateMission(needId) {
             }
 
             this.paintings = data || [];
-            console.log('✓ Loaded', this.paintings.length, 'paintings');
 
             // Render if we're on the gallery page
             if (document.getElementById('gallery')?.classList.contains('active')) {
@@ -6577,9 +6459,6 @@ async updateMission(needId) {
     }
 
     renderPaintings() {
-        console.log('=== renderPaintings DEBUG ===');
-        console.log('Current user:', this.currentUser?.name, 'Status:', this.currentUser?.user_status);
-        console.log('Paintings to render:', this.paintings.length);
 
         const container = document.getElementById('galleryGrid');
         if (!container) {
@@ -6590,20 +6469,16 @@ async updateMission(needId) {
         // Show add button for admins
         const addBtn = document.getElementById('addPaintingBtn');
         if (addBtn && this.currentUser?.user_status === 'admin') {
-            console.log('✓ Showing add painting button for admin');
             addBtn.style.display = 'block';
         } else if (addBtn) {
-            console.log('⨯ Hiding add painting button (not admin)');
             addBtn.style.display = 'none';
         }
 
         if (!this.paintings || this.paintings.length === 0) {
-            console.log('No paintings to display');
             container.innerHTML = '<p class="empty-state">No paintings in the gallery yet. Check back soon!</p>';
             return;
         }
 
-        console.log('Rendering', this.paintings.length, 'paintings...');
 
         container.innerHTML = this.paintings.map(painting => {
             const status = painting.sale_status || (painting.available ? 'for_sale' : 'sold');
@@ -6757,7 +6632,6 @@ async updateMission(needId) {
 
         // Prevent double submission
         if (this._isSubmittingPainting) {
-            console.log('Already submitting painting, ignoring duplicate');
             return;
         }
 
@@ -7039,7 +6913,6 @@ async updateMission(needId) {
             },
             onApprove: async (data, actions) => {
                 const order = await actions.order.capture();
-                console.log('PayPal payment captured:', order);
                 await this.handlePaintingPurchaseSuccess(painting.id);
                 this.closePaintingDetail();
             },

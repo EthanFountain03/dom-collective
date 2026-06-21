@@ -28,18 +28,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <Script
-          src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
-          strategy="beforeInteractive"
-        />
-      </head>
       <body>
         {children}
-        <Script
-          src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8"
-          strategy="afterInteractive"
-        />
         <Script
           src="https://js.stripe.com/v3/"
           strategy="afterInteractive"
