@@ -2683,7 +2683,7 @@ async updateMission(needId) {
         const token = session?.access_token;
         if (!token) return;
 
-        const response = await fetch('/create-event.php', {
+        const response = await fetch('/api/create-event', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -6147,7 +6147,7 @@ async updateMission(needId) {
             return;
         }
 
-        const response = await fetch('/create-event.php', {
+        const response = await fetch('/api/create-event', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -6483,12 +6483,15 @@ async updateMission(needId) {
         container.innerHTML = this.paintings.map(painting => {
             const status = painting.sale_status || (painting.available ? 'for_sale' : 'sold');
             const isAvailable = status === 'for_trade' || status === 'for_sale';
-            const priceHtml = isAvailable
-                ? `<div class="painting-price painting-price-trade">For Trade</div>`
-                : `<div class="painting-price painting-price-nfs">Not for Trade</div>`;
+            const priceLabel = status === 'for_sale'
+                ? `$${parseFloat(painting.price || 0).toFixed(2)}`
+                : status === 'for_trade' ? 'For Trade'
+                : status === 'sold' ? 'Sold' : 'Not for Sale';
+            const priceCls = isAvailable ? 'painting-price-trade' : 'painting-price-nfs';
+            const priceHtml = `<div class="painting-price ${priceCls}">${priceLabel}</div>`;
             const actionHtml = isAvailable
                 ? `<button class="btn btn-outline" onclick="event.stopPropagation(); app.openPaintingDetail('${painting.id}')">Inquire</button>`
-                : `<button class="btn btn-outline" disabled>Not for Trade</button>`;
+                : `<button class="btn btn-outline" disabled>${status === 'sold' ? 'Sold' : 'Not for Sale'}</button>`;
             return `
             <div class="painting-card fade-in" style="cursor:pointer;" onclick="app.openPaintingDetail('${painting.id}')">
                 <div class="painting-image-container">
@@ -6851,10 +6854,14 @@ async updateMission(needId) {
 
         const detailStatus = painting.sale_status || (painting.available ? 'for_sale' : 'sold');
         const detailAvailable = detailStatus === 'for_trade' || detailStatus === 'for_sale';
+        const detailPriceLabel = detailStatus === 'for_sale'
+            ? `$${parseFloat(painting.price || 0).toFixed(2)}`
+            : detailStatus === 'for_trade' ? 'For Trade'
+            : detailStatus === 'sold' ? 'Sold' : 'Not for Sale';
         const priceEl = document.getElementById('paintingDetailPrice');
         priceEl.innerHTML = detailAvailable
-            ? '<span class="painting-price-trade">For Trade</span>'
-            : '<span class="painting-price-nfs">Not for Trade</span>';
+            ? `<span class="painting-price-trade">${detailPriceLabel}</span>`
+            : `<span class="painting-price-nfs">${detailPriceLabel}</span>`;
 
         // Never show the sold overlay — status is communicated in the info box only
         const overlay = document.getElementById('paintingDetailSoldOverlay');
