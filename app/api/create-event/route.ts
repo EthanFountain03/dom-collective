@@ -110,7 +110,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Get Google access token via service account JWT
-    const sa = JSON.parse(keyJson);
+    let sa: { client_email: string; private_key: string };
+    try {
+        sa = JSON.parse(keyJson);
+    } catch {
+        return NextResponse.json({ error: 'GOOGLE_SERVICE_ACCOUNT_KEY_JSON is not valid JSON' }, { status: 500 });
+    }
+    if (!sa.client_email || !sa.private_key) {
+        return NextResponse.json({ error: 'Service account key missing client_email or private_key' }, { status: 500 });
+    }
+
     const accessToken = await getGoogleToken(sa);
     if (!accessToken) {
         return NextResponse.json({ error: 'Failed to get Google access token' }, { status: 500 });

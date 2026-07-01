@@ -6147,32 +6147,44 @@ async updateMission(needId) {
             return;
         }
 
-        const response = await fetch('/api/create-event', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token
-            },
-            body: JSON.stringify(eventPayload)
-        });
-
-        const result = await response.json();
+        let result: any;
+        try {
+            const response = await fetch('/api/create-event', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(eventPayload)
+            });
+            const text = await response.text();
+            try {
+                result = JSON.parse(text);
+            } catch {
+                throw new Error(`API returned non-JSON (${response.status}): ${text.slice(0, 200)}`);
+            }
+            if (!response.ok && !result.success) {
+                throw new Error(result.error || `HTTP ${response.status}`);
+            }
+        } catch (err: any) {
+            console.error('Calendar sync error:', err);
+            this.showAlert('Calendar sync failed: ' + err.message, 'error');
+            return;
+        }
 
         if (result.success && result.eventId) {
-            // Store calendar link back on the space_request row (non-fatal if columns don't exist yet)
             supabase.from('space_requests').update({
                 google_calendar_id:   result.eventId,
                 google_calendar_link: result.htmlLink
             }).eq('id', requestId).then(({ error }) => {
-                if (error) console.warn('Could not store calendar link on space_request (columns may need migration):', error.message);
+                if (error) console.warn('Could not store calendar link on space_request:', error.message);
             });
 
             this.showAlert('Approved and added to the DōM Collective calendar!', 'success');
-            // Refresh calendar view if it's open
             this.renderNativeCalendar?.();
         } else {
             console.warn('GCal sync for space request failed:', result);
-            this.showAlert('Request approved, but calendar sync failed — add manually if needed.', 'info');
+            this.showAlert('Calendar sync failed: ' + (result?.error || JSON.stringify(result)), 'error');
         }
     }
 
