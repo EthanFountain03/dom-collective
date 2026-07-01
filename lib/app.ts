@@ -6067,12 +6067,18 @@ async updateMission(needId) {
     async deleteSpaceRequest(requestId) {
         if (!confirm('Permanently delete this space request?')) return;
         try {
-            const { error } = await supabase.from('space_requests').delete().eq('id', requestId);
+            const { error, count } = await supabase
+                .from('space_requests')
+                .delete({ count: 'exact' })
+                .eq('id', requestId);
             if (error) throw error;
+            if (count === 0) throw new Error('Delete blocked — no permission or row not found');
             document.getElementById(`dash-req-${requestId}`)?.remove();
             document.getElementById(`req-${requestId}`)?.remove();
+            this.showAlert('Request deleted.', 'success');
         } catch (e) {
             this.showAlert('Failed to delete: ' + e.message, 'error');
+            await this.renderDashRequests();
         }
     }
 
