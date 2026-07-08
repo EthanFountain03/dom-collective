@@ -285,6 +285,9 @@ export default function DomApp() {
               <h2>Membership Tiers</h2>
               <p className="membership-subtitle">Choose the level that fits your creative journey</p>
             </div>
+            <div id="membershipClosedNotice" style={{display: 'none', background: '#000', color: '#fff', padding: '16px 20px', textAlign: 'center', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 24px'}}>
+              Paid membership signups are currently closed — check back soon. You can still join free as Community.
+            </div>
             <div id="currentMembershipStatus" className="current-membership-status" style={{display: 'none'}}>
               <div className="status-card">
                 <h3>Your Current Membership</h3>
@@ -821,6 +824,14 @@ export default function DomApp() {
                     <button className="btn btn-primary btn-sm" onClick={() => (window as any).app?.setManualBoost()}>Set</button>
                     <button className="btn btn-outline btn-sm" onClick={() => (window as any).app?.adjustManualBoost(-99999)}>Reset to $0</button>
                   </div>
+                </div>
+                <div className="admin-membership-toggle" style={{marginTop: '28px', paddingTop: '20px', borderTop: '2px solid #000'}}>
+                  <label style={{fontSize: '12px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '8px'}}>Paid Membership Signups</label>
+                  <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+                    <span id="adminMembershipStatus" style={{fontSize: '16px', fontWeight: 900}}>—</span>
+                    <button className="btn btn-primary btn-sm" id="adminMembershipToggleBtn" onClick={() => (window as any).app?.toggleMemberships()}>Toggle</button>
+                  </div>
+                  <p style={{fontSize: '12px', color: '#666', margin: '8px 0 0'}}>When closed, paid tier buttons are disabled site-wide and checkout is blocked. Free Community signups and existing members are unaffected.</p>
                 </div>
               </div>
             </div>

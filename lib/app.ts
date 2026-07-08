@@ -62,6 +62,7 @@ export class CreativeCollective {
         this._authProcessing = false;
         this.subscriptionTiers = [];
         this.userSubscription = null;
+        this.membershipsEnabled = true; // paid signups on/off (site_settings key 'memberships_enabled')
 
         // Display name mapping: internal DB values → user-facing labels
         this.tierDisplayNames = {
@@ -339,6 +340,7 @@ async checkSession() {
         await safeLoad('loadCheckInStatuses', () => this.loadCheckInStatuses());
         await safeLoad('loadSpaceStatus', () => this.loadSpaceStatus());
         await safeLoad('loadSubscriptionTiers', () => this.loadSubscriptionTiers());
+        await safeLoad('loadMembershipToggle', () => this.loadMembershipToggle());
         await safeLoad('updateStats', () => this.updateStats());
         this.renderFeaturedMembers();
         this.renderLatestNeeds();
@@ -405,6 +407,7 @@ async checkSession() {
                 await this.loadCheckInStatuses();
                 await this.loadSpaceStatus();
                 await this.loadSubscriptionTiers();
+                await this.loadMembershipToggle();
                 await this.fetchUserRsvps();
                 await this.updateStats();
 
@@ -3005,7 +3008,7 @@ async updateMission(needId) {
             case 'members':  this.renderDashMembers();  break;
             case 'gallery':  this.renderDashGallery();  break;
             case 'feedback': this.renderDashFeedback(); break;
-            case 'progress': this.loadProgressBar();    break;
+            case 'progress': this.loadProgressBar(); this.loadMembershipToggle(); break;
         }
     }
 
@@ -5174,6 +5177,78 @@ async updateMission(needId) {
         }
     }
 
+    // Admin on/off switch for paid membership signups (site_settings key 'memberships_enabled').
+    // Missing row or read failure = open, so a DB hiccup never blocks signups.
+    async loadMembershipToggle() {
+        try {
+            const { data, error } = await supabase
+                .from('site_settings')
+                .select('value')
+                .eq('key', 'memberships_enabled')
+                .maybeSingle();
+            if (error) throw error;
+            this.membershipsEnabled = data ? data.value !== 'false' : true;
+        } catch (e) {
+            console.warn('loadMembershipToggle error:', e.message);
+        }
+        this.updateMembershipAvailabilityUI();
+    }
+
+    updateMembershipAvailabilityUI() {
+        const open = this.membershipsEnabled !== false;
+
+        const notice = document.getElementById('membershipClosedNotice');
+        if (notice) notice.style.display = open ? 'none' : 'block';
+
+        if (!open) {
+            document.querySelectorAll('.tier-select-btn').forEach(btn => {
+                if (btn.dataset.tier === 'visitor') return; // free tier stays available
+                btn.disabled = true;
+                btn.textContent = 'Memberships Closed';
+            });
+        }
+
+        const statusEl = document.getElementById('adminMembershipStatus');
+        const toggleBtn = document.getElementById('adminMembershipToggleBtn');
+        if (statusEl) {
+            statusEl.textContent = open ? 'OPEN' : 'CLOSED';
+            statusEl.style.color = open ? '#1a7f37' : '#c62828';
+        }
+        if (toggleBtn) toggleBtn.textContent = open ? 'Close Memberships' : 'Open Memberships';
+    }
+
+    async toggleMemberships() {
+        const newVal = !this.membershipsEnabled;
+        try {
+            let { error } = await supabase.from('site_settings')
+                .upsert({ key: 'memberships_enabled', value: String(newVal) }, { onConflict: 'key' });
+            // Session may have expired — refresh and retry once
+            if (error && (error.message?.includes('JWT') || error.message?.includes('expired') || error.code === 'PGRST301')) {
+                await supabase.auth.refreshSession();
+                const retry = await supabase.from('site_settings')
+                    .upsert({ key: 'memberships_enabled', value: String(newVal) }, { onConflict: 'key' });
+                error = retry.error;
+            }
+            if (error) throw error;
+            this.membershipsEnabled = newVal;
+            if (newVal) {
+                // Reopening: restore paid tier buttons, then let the normal display
+                // logic re-apply "Current Tier" state for the logged-in user
+                document.querySelectorAll('.tier-select-btn').forEach(btn => {
+                    const tier = btn.dataset.tier;
+                    if (tier === 'visitor') return;
+                    btn.disabled = false;
+                    btn.textContent = 'Select ' + this.getTierDisplayName(tier);
+                });
+                this.updateMembershipDisplay();
+            }
+            this.updateMembershipAvailabilityUI();
+            this.showAlert(newVal ? 'Memberships are now OPEN.' : 'Memberships are now CLOSED.', 'success');
+        } catch (e) {
+            this.showAlert('Failed to update membership toggle: ' + e.message, 'error');
+        }
+    }
+
     async loadUserSubscription() {
         if (!this.currentUser) return;
 
@@ -5232,6 +5307,9 @@ async updateMission(needId) {
                 }
             }
         });
+
+        // Re-apply the closed-state override after buttons were reset above
+        this.updateMembershipAvailabilityUI();
     }
 
     async selectMembershipTier(tier, price) {
@@ -5248,10 +5326,20 @@ async updateMission(needId) {
             return;
         }
 
+        if (!this.membershipsEnabled) {
+            this.showAlert('Membership signups are currently closed. Check back soon!', 'error');
+            return;
+        }
+
         await this.createStripeCheckout(tier, priceNum);
     }
 
     async createStripeCheckout(tier, price) {
+        if (!this.membershipsEnabled) {
+            this.showAlert('Membership signups are currently closed. Check back soon!', 'error');
+            return;
+        }
+
         const paymentLinks = {
             member: 'https://buy.stripe.com/fZu8wPceQ7LM4Hg98kgnK05',
             contributor: 'https://buy.stripe.com/cNi7sLdiU2rs6Po3O0gnK06'
